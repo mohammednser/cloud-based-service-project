@@ -1,0 +1,31 @@
+type Document @model @auth(rules: [{ allow: private }]) {
+  id: ID!
+  fileName: String!
+  title: String!
+  text: String!
+  size: Int!
+  category: String!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  s3Key: String!
+  classification: [String]!
+  metadata: AWSJSON
+}
+
+type Query {
+  searchDocuments(query: String!): [Document] @function(name: "searchDocuments")
+  getDocumentStats: DocumentStats @function(name: "getDocumentStats")
+}
+
+type DocumentStats {
+  totalCount: Int!
+  totalSize: Int!
+  averageSize: Float!
+  categoryDistribution: AWSJSON!
+  lastUpdated: AWSDateTime!
+}
+
+type Mutation {
+  classifyDocument(documentId: ID!): Document @function(name: "classifyDocument")
+  triggerWebCrawler: Boolean @function(name: "triggerWebCrawler")
+} 
