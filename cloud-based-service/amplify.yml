@@ -1,0 +1,17 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd cloud-based-service/cloud-based-service
+        - npm install
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: cloud-based-service/cloud-based-service/build
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - cloud-based-service/cloud-based-service/node_modules/**/*
