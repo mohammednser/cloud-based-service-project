@@ -5,14 +5,16 @@ frontend:
       commands:
         - nvm install 20.16.0
         - nvm use 20.16.0
-        - npm install
+        - cd cloud-based-service
+        - npm ci  # استخدم npm ci لتثبيت التبعيات بدقة
     build:
       commands:
+        - cd cloud-based-service
         - npm run build
   artifacts:
-    baseDirectory: build
+    baseDirectory: cloud-based-service/build  # تحديث المسار إلى المجلد build داخل cloud-based-service
     files:
       - '**/*'
   cache:
     paths:
-      - node_modules/**/*
+      - cloud-based-service/node_modules/**/*  # تحديث مسار الكاش
