@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { generateClient } from 'aws-amplify/api';
+import { API, graphqlOperation } from 'aws-amplify';
 import { uploadData } from 'aws-amplify/storage';
 import { createDocument } from '../graphql/mutations';
 import { toast } from 'react-toastify';
@@ -8,8 +8,6 @@ import { extractPdfTitleAndText } from './extractPdfTitle';
 import { classifyDocument } from './classifyDocument';
 import { classifyWithNlpCloud } from './classifyWithNlpCloud';
 import { extractDocxTitleAndText } from './extractDocxText';
-
-const client = generateClient();
 
 const Upload: React.FC = () => {
   const { lang, t } = useLanguage();
@@ -102,21 +100,18 @@ const Upload: React.FC = () => {
         if (!category) {
           category = classifyDocument(title, text);
         }
-        await client.graphql({
-          query: createDocument,
-          variables: {
-            input: {
-              title,
-              fileName: file.name,
-              text,
-              size: file.size,
-              s3Key: key,
-              status: 'UPLOADED',
-              createdAt: new Date().toISOString(),
-              category,
-            }
+        await API.graphql(graphqlOperation(createDocument, {
+          input: {
+            title,
+            fileName: file.name,
+            text,
+            size: file.size,
+            s3Key: key,
+            status: 'UPLOADED',
+            createdAt: new Date().toISOString(),
+            category,
           }
-        });
+        }));
       }
       
       // Reset form
