@@ -12,9 +12,9 @@ frontend:
         - cd cloud-based-service
         - npm run build
   artifacts:
-    baseDirectory: cloud-based-service/build
+    baseDirectory: build
     files:
       - '**/*'
   cache:
     paths:
-      - cloud-based-service/node_modules/**/*
+      - node_modules/**/*
