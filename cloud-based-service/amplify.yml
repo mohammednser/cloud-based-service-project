@@ -3,16 +3,18 @@ frontend:
   phases:
     preBuild:
       commands:
+        - cd cloud-based-service
         - nvm install 20.16.0
         - nvm use 20.16.0
         - npm ci
     build:
       commands:
+        - cd cloud-based-service
         - npm run build
   artifacts:
-    baseDirectory: build
+    baseDirectory: cloud-based-service/build
     files:
       - '**/*'
   cache:
     paths:
-      - node_modules/**/*
+      - cloud-based-service/node_modules/**/*
