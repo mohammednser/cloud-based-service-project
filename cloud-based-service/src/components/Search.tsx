@@ -23,7 +23,9 @@ const Search: React.FC = () => {
     setLoading(true);
     const start = performance.now();
     try {
-      const observable = GraphQLAPI.graphql(graphqlOperation(searchDocuments, { filter: term })) as any;
+      const observable = GraphQLAPI.graphql({
+        ...graphqlOperation(searchDocuments, { filter: term })
+      }) as any;
       let response: any;
       if (typeof observable === 'object' && 'subscribe' in observable) {
         // aws-amplify v5+ returns Observable
