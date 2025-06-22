@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { API, graphqlOperation } from 'aws-amplify';
+import { GraphQLAPI, graphqlOperation } from '@aws-amplify/api-graphql';
 import { uploadData } from 'aws-amplify/storage';
 import { createDocument } from '../graphql/mutations';
 import { toast } from 'react-toastify';
@@ -100,18 +100,20 @@ const Upload: React.FC = () => {
         if (!category) {
           category = classifyDocument(title, text);
         }
-        await API.graphql(graphqlOperation(createDocument, {
-          input: {
-            title,
-            fileName: file.name,
-            text,
-            size: file.size,
-            s3Key: key,
-            status: 'UPLOADED',
-            createdAt: new Date().toISOString(),
-            category,
-          }
-        }));
+        await GraphQLAPI.graphql({
+          ...graphqlOperation(createDocument, {
+            input: {
+              title,
+              fileName: file.name,
+              text,
+              size: file.size,
+              s3Key: key,
+              status: 'UPLOADED',
+              category,
+              language: lang,
+            },
+          })
+        });
       }
       
       // Reset form
