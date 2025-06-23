@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { generateClient } from 'aws-amplify/api';
+import { GraphQLAPI, graphqlOperation } from '@aws-amplify/api-graphql';
+import { firstValueFrom } from 'rxjs';
 import { listDocuments } from '../graphql/queries';
 import { DocumentType } from '../types';
 import { useLanguage } from './LanguageContext';
@@ -12,8 +13,6 @@ import {
   Legend
 } from 'chart.js';
 ChartJS.register(ArcElement, Tooltip, Legend);
-
-const client = generateClient();
 
 interface Stats {
   totalDocuments: number;
@@ -41,10 +40,14 @@ const Stats: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await client.graphql({
-        query: listDocuments,
-      });
-      if ('data' in response && response.data && response.data.listDocuments) {
+      const observable = GraphQLAPI.graphql(graphqlOperation(listDocuments)) as any;
+      let response: any;
+      if (typeof observable === 'object' && 'subscribe' in observable) {
+        response = await firstValueFrom(observable);
+      } else {
+        response = await observable;
+      }
+      if (response?.data?.listDocuments) {
         const documents: DocumentType[] = response.data.listDocuments.items;
         
         // Calculate statistics
@@ -72,10 +75,17 @@ const Stats: React.FC = () => {
         });
 
         setStats(newStats);
+      } else {
+        setStats({
+          totalDocuments: 0,
+          totalSize: 0,
+          averageSize: 0,
+          categoryCounts: {},
+          languageCounts: {},
+        });
       }
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-      setError('حدث خطأ في جلب الإحصائيات');
+    } catch (err) {
+      setError('Error fetching stats');
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { API, graphqlOperation } from 'aws-amplify';
+import { GraphQLAPI, graphqlOperation } from '@aws-amplify/api-graphql';
 import { listDocuments } from '../graphql/queries';
 import { DocumentType } from '../types';
 import { useLanguage } from './LanguageContext';
@@ -14,7 +14,7 @@ const Sort: React.FC = () => {
   const fetchDocuments = async () => {
     try {
       setIsLoading(true);
-      const response = await API.graphql(graphqlOperation(listDocuments));
+      const response = await GraphQLAPI.graphql(graphqlOperation(listDocuments));
       // @ts-ignore - response type is not properly inferred
       const fetchedDocuments = response.data.listDocuments.items;
       setDocuments(fetchedDocuments);

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, ChangeEvent } from 'react';
-import { Storage } from 'aws-amplify';
-import { API, graphqlOperation } from 'aws-amplify';
+import { uploadData } from 'aws-amplify/storage';
+import { GraphQLAPI, graphqlOperation } from '@aws-amplify/api-graphql';
 import { createDocument } from './graphql/mutations';
 import type { DocumentType } from './types';
 
@@ -72,14 +72,19 @@ const Upload: React.FC = () => {
 
         // Upload to S3
         const s3Key = `documents/${Date.now()}-${file.name}`;
-        await Storage.put(s3Key, file, {
-          contentType: file.type,
-          progressCallback: (progress) => {
-            updateState({
-              uploadProgress: (progress.loaded / progress.total) * 100
-            });
+        await uploadData({
+          key: s3Key,
+          data: file,
+          options: {
+            onProgress: (progress) => {
+              if (progress.totalBytes) {
+                updateState({
+                  uploadProgress: (progress.transferredBytes / progress.totalBytes) * 100
+                });
+              }
+            },
           },
-        });
+        }).result;
 
         // Create document metadata in DynamoDB
         const documentInput: Partial<DocumentType> = {
@@ -92,7 +97,7 @@ const Upload: React.FC = () => {
           classification: [],
         };
 
-        await API.graphql(graphqlOperation(createDocument, { input: documentInput }));
+        await GraphQLAPI.graphql(graphqlOperation(createDocument, { input: documentInput }));
       }
 
       // Reset form and show success
@@ -140,6 +145,7 @@ const Upload: React.FC = () => {
               Select a directory to crawl
             </label>
             <div className="mt-1">
+              {/* @ts-ignore */}
               <input
                 type="file"
                 webkitdirectory

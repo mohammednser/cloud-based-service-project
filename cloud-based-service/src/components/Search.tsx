@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { GraphQLAPI, graphqlOperation } from '@aws-amplify/api-graphql';
+import { GraphQLAPI } from '@aws-amplify/api-graphql';
+import { graphqlOperation } from '@aws-amplify/api-graphql';
 import { firstValueFrom } from 'rxjs';
 import { debounce } from 'lodash';
 import { searchDocuments } from '../graphql/queries';
@@ -11,24 +12,22 @@ const Search: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTime, setSearchTime] = useState<number | null>(null);
 
   const handleSearch = useCallback(async (term: string) => {
     if (!term) {
       setDocuments([]);
-      setSearchTime(null);
       return;
     }
 
     setLoading(true);
-    const start = performance.now();
     try {
-      const observable = GraphQLAPI.graphql({
-        ...graphqlOperation(searchDocuments, { filter: term })
-      }) as any;
+      const observable = GraphQLAPI.graphql(
+        graphqlOperation(searchDocuments, { filter: term }),
+        undefined,
+        undefined
+      ) as any;
       let response: any;
       if (typeof observable === 'object' && 'subscribe' in observable) {
-        // aws-amplify v5+ returns Observable
         response = await firstValueFrom(observable);
       } else {
         response = await observable;
@@ -42,7 +41,6 @@ const Search: React.FC = () => {
       console.error('Error searching documents:', error);
     } finally {
       setLoading(false);
-      setSearchTime(performance.now() - start);
     }
   }, []);
 

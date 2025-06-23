@@ -100,8 +100,8 @@ const Upload: React.FC = () => {
         if (!category) {
           category = classifyDocument(title, text);
         }
-        await GraphQLAPI.graphql({
-          ...graphqlOperation(createDocument, {
+        await GraphQLAPI.graphql(
+          graphqlOperation(createDocument, {
             input: {
               title,
               fileName: file.name,
@@ -113,7 +113,7 @@ const Upload: React.FC = () => {
               language: lang,
             },
           })
-        });
+        );
       }
       
       // Reset form
