@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { GraphQLAPI, graphqlOperation } from '@aws-amplify/api-graphql';
+import { generateClient } from '@aws-amplify/api';
 import { uploadData } from 'aws-amplify/storage';
 import { createDocument } from '../graphql/mutations';
 import { toast } from 'react-toastify';
@@ -8,6 +8,8 @@ import { extractPdfTitleAndText } from './extractPdfTitle';
 import { classifyDocument } from './classifyDocument';
 import { classifyWithNlpCloud } from './classifyWithNlpCloud';
 import { extractDocxTitleAndText } from './extractDocxText';
+
+const client = generateClient();
 
 const Upload: React.FC = () => {
   const { lang, t } = useLanguage();
@@ -100,8 +102,10 @@ const Upload: React.FC = () => {
         if (!category) {
           category = classifyDocument(title, text);
         }
-        await GraphQLAPI.graphql(
-          graphqlOperation(createDocument, {
+        // التعديل هنا فقط: استدعاء إضافة المستند
+        await client.graphql({
+          query: createDocument,
+          variables: {
             input: {
               title,
               fileName: file.name,
@@ -112,8 +116,8 @@ const Upload: React.FC = () => {
               category,
               language: lang,
             },
-          })
-        );
+          },
+        });
       }
       
       // Reset form

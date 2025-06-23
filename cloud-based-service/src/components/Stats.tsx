@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GraphQLAPI, graphqlOperation } from '@aws-amplify/api-graphql';
-import { firstValueFrom } from 'rxjs';
+import { generateClient } from '@aws-amplify/api';
 import { listDocuments } from '../graphql/queries';
 import { DocumentType } from '../types';
 import { useLanguage } from './LanguageContext';
@@ -14,7 +13,9 @@ import {
 } from 'chart.js';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-interface Stats {
+const client = generateClient();
+
+interface StatsData {
   totalDocuments: number;
   totalSize: number;
   averageSize: number;
@@ -24,7 +25,7 @@ interface Stats {
 
 const Stats: React.FC = () => {
   const { t, lang } = useLanguage();
-  const [stats, setStats] = useState<Stats>({
+  const [stats, setStats] = useState<StatsData>({
     totalDocuments: 0,
     totalSize: 0,
     averageSize: 0,
@@ -40,14 +41,8 @@ const Stats: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const observable = GraphQLAPI.graphql(graphqlOperation(listDocuments)) as any;
-      let response: any;
-      if (typeof observable === 'object' && 'subscribe' in observable) {
-        response = await firstValueFrom(observable);
-      } else {
-        response = await observable;
-      }
-      if (response?.data?.listDocuments) {
+      const response = await client.graphql({ query: listDocuments });
+      if ('data' in response && response.data?.listDocuments) {
         const documents: DocumentType[] = response.data.listDocuments.items;
         
         // Calculate statistics

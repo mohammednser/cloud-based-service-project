@@ -1,6 +1,4 @@
-import { gql } from 'graphql-tag';
-
-export const listDocuments = gql`
+export const listDocuments = `
   query ListDocuments(
     $filter: DocumentFilterInput
     $limit: Int
@@ -24,7 +22,7 @@ export const listDocuments = gql`
   }
 `;
 
-export const getDocument = gql`
+export const getDocument = `
   query GetDocument($id: ID!) {
     getDocument(id: $id) {
       id
@@ -42,7 +40,7 @@ export const getDocument = gql`
   }
 `;
 
-export const searchDocuments = gql`
+export const searchDocuments = `
   query SearchDocuments(
     $filter: String!
     $limit: Int
@@ -66,7 +64,7 @@ export const searchDocuments = gql`
   }
 `;
 
-export const getDocumentStats = gql`
+export const getDocumentStats = `
   query GetDocumentStats {
     getDocumentStats {
       totalCount

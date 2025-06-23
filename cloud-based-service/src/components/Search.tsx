@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { GraphQLAPI } from '@aws-amplify/api-graphql';
-import { firstValueFrom } from 'rxjs';
+import { generateClient } from '@aws-amplify/api';
 import { debounce } from 'lodash';
 import { searchDocuments } from '../graphql/queries';
 import { DocumentType } from '../types';
 import { useLanguage } from './LanguageContext';
+
+const client = generateClient();
 
 const Search: React.FC = () => {
   const { lang, t } = useLanguage();
@@ -20,17 +21,8 @@ const Search: React.FC = () => {
 
     setLoading(true);
     try {
-      // تمرير كل شيء داخل object واحد (GraphQLOptions)
-      const observable = GraphQLAPI.graphql({
-        query: searchDocuments,
-        variables: { filter: term }
-      }) as any;
-      let response: any;
-      if (typeof observable === 'object' && 'subscribe' in observable) {
-        response = await firstValueFrom(observable);
-      } else {
-        response = await observable;
-      }
+      // الحل النهائي: استخدام client.graphql مع object يحتوي على query و variables
+      const response: any = await client.graphql({ query: searchDocuments, variables: { filter: term } });
       if (response?.data?.searchDocuments) {
         setDocuments(response.data.searchDocuments.items);
       } else {
