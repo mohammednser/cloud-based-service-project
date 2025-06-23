@@ -11,6 +11,7 @@
     "crypto-js": "^4.1.1",
     "express": "^5.1.0",
     "fs-extra": "^11.3.0",
+    "graphql-tag": "^2.12.6",
     "lodash": "^4.17.21",
     "mammoth": "^1.9.1",
     "pdfjs-dist": "^5.3.31",
