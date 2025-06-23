@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { GraphQLAPI } from '@aws-amplify/api-graphql';
-import { graphqlOperation } from '@aws-amplify/api-graphql';
 import { firstValueFrom } from 'rxjs';
 import { debounce } from 'lodash';
 import { searchDocuments } from '../graphql/queries';
@@ -21,11 +20,10 @@ const Search: React.FC = () => {
 
     setLoading(true);
     try {
-      const observable = GraphQLAPI.graphql(
-        graphqlOperation(searchDocuments, { filter: term }),
-        undefined,
-        undefined
-      ) as any;
+      const observable = GraphQLAPI.graphql({
+        query: searchDocuments,
+        variables: { filter: term }
+      }) as any;
       let response: any;
       if (typeof observable === 'object' && 'subscribe' in observable) {
         response = await firstValueFrom(observable);
