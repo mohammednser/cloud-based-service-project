@@ -20,6 +20,7 @@ const Search: React.FC = () => {
 
     setLoading(true);
     try {
+      // تمرير كل شيء داخل object واحد (GraphQLOptions)
       const observable = GraphQLAPI.graphql({
         query: searchDocuments,
         variables: { filter: term }
