@@ -1,35 +1,32 @@
 import React, { useState, useCallback } from 'react';
-import { generateClient } from '@aws-amplify/api';
 import { debounce } from 'lodash';
-import { searchDocuments } from '../graphql/queries';
-import { DocumentType } from '../types';
 import { useLanguage } from './LanguageContext';
 
-const client = generateClient();
+const LAMBDA_SEARCH_URL = 'https://fg9nays5v9.execute-api.eu-north-1.amazonaws.com/default/searchInFiles';
 
 const Search: React.FC = () => {
   const { lang, t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
-  const [documents, setDocuments] = useState<DocumentType[]>([]);
+  const [results, setResults] = useState<{ file: string; context: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleSearch = useCallback(async (term: string) => {
     if (!term) {
-      setDocuments([]);
+      setResults([]);
       return;
     }
-
     setLoading(true);
     try {
-      // الحل النهائي: استخدام client.graphql مع object يحتوي على query و variables
-      const response: any = await client.graphql({ query: searchDocuments, variables: { filter: term } });
-      if (response?.data?.searchDocuments) {
-        setDocuments(response.data.searchDocuments.items);
-      } else {
-        setDocuments([]);
-      }
+      const response = await fetch(LAMBDA_SEARCH_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: term }),
+      });
+      if (!response.ok) throw new Error('Error searching files');
+      const data = await response.json();
+      setResults(data.results || []);
     } catch (error) {
-      console.error('Error searching documents:', error);
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -43,6 +40,17 @@ const Search: React.FC = () => {
     debouncedSearch(value);
   };
 
+  function highlightText(text: string, search: string) {
+    if (!search) return text;
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    return text.split(regex).map((part, i) =>
+      regex.test(part)
+        ? <mark key={i} style={{ backgroundColor: '#fff59d', padding: '0 2px', borderRadius: '3px' }}>{part}</mark>
+        : part
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto" dir="auto">
       <div className="bg-white shadow sm:rounded-lg p-6">
@@ -52,7 +60,6 @@ const Search: React.FC = () => {
           <div className="text-center">
             <div className="flex flex-col items-center gap-2">
               <div className="w-10 h-10 border-4 border-indigo-300 border-t-transparent rounded-full animate-spin mb-4"></div>
-              {/* Skeleton UI */}
               <div className="w-72 h-8 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse mb-2"></div>
               <div className="w-56 h-6 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse mb-2"></div>
               <div className="w-80 h-6 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse mb-2"></div>
@@ -61,7 +68,7 @@ const Search: React.FC = () => {
           </div>
         )}
 
-        {!loading && documents.length === 0 && searchTerm && (
+        {!loading && results.length === 0 && searchTerm && (
           <div className="text-center">
             <p className="text-gray-400 text-lg animate-pulse">{lang === 'ar' ? t.noResults || 'لا توجد نتائج' : t.noResults || 'No results found'}</p>
           </div>
@@ -69,12 +76,7 @@ const Search: React.FC = () => {
 
         <div className="space-y-4">
           <div>
-            <label
-              htmlFor="search"
-              className="block text-sm font-medium text-gray-700 font-arabic"
-            >
-              مصطلح البحث
-            </label>
+            <label htmlFor="search" className="block text-sm font-medium text-gray-700 font-arabic">مصطلح البحث</label>
             <div className="mt-1 relative">
               <input
                 type="text"
@@ -88,32 +90,19 @@ const Search: React.FC = () => {
             </div>
           </div>
 
-          {!loading && documents.length > 0 && (
+          {!loading && results.length > 0 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium font-arabic">
-                تم العثور على {documents.length} مستند
-              </h3>
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="bg-gray-50 p-4 rounded-lg space-y-2"
-                >
-                  <h4 className="font-medium font-arabic">{doc.title}</h4>
-                  <p className="text-sm text-gray-600 font-arabic">
-                    الفئة: {doc.category}
-                  </p>
-                  <div className="text-sm font-arabic">
-                    {doc.text}
-                  </div>
-                  <div className="text-xs text-gray-500 font-arabic">
-                    الملف: {doc.fileName} ({doc.size ? Math.round(doc.size / 1024) : 0} كيلوبايت)
-                  </div>
+              <h3 className="text-lg font-medium font-arabic">تم العثور على {results.length} مستند</h3>
+              {results.map((res, idx) => (
+                <div key={idx} className="bg-gray-50 p-4 rounded-lg space-y-2">
+                  <h4 className="font-medium font-arabic">{res.file}</h4>
+                  <div className="text-sm font-arabic">{highlightText(res.context, searchTerm)}</div>
                 </div>
               ))}
             </div>
           )}
 
-          {!loading && searchTerm && documents.length === 0 && (
+          {!loading && searchTerm && results.length === 0 && (
             <p className="text-gray-500 font-arabic">لم يتم العثور على مستندات.</p>
           )}
         </div>

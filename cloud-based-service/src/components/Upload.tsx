@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { generateClient } from '@aws-amplify/api';
-import { uploadData } from 'aws-amplify/storage';
 import { createDocument } from '../graphql/mutations';
 import { toast } from 'react-toastify';
 import { useLanguage } from './LanguageContext';
@@ -33,28 +32,44 @@ const Upload: React.FC = () => {
     }
   };
 
-  const uploadFile = async (file: File) => {
-    try {
-      const fileName = `documents/${Date.now()}-${file.name}`;
-      await uploadData({
-        key: fileName,
-        data: file,
-        options: {
-          onProgress: (event) => {
-            if (event.totalBytes) {
-              setProgress(Math.round((event.transferredBytes / event.totalBytes) * 100));
-            } else {
-              setProgress(0);
-            }
-          },
-        },
-      }).result;
+  // استبدال uploadFile ليستخدم Lambda API Gateway مباشرة
+  const LAMBDA_UPLOAD_URL = 'https://fg9nays5v9.execute-api.eu-north-1.amazonaws.com/default/uploadToS3';
+  const LAMBDA_RECORD_URL = 'https://fg9nays5v9.execute-api.eu-north-1.amazonaws.com/default/recordUploadToDynamo'; // ضع رابط Lambda DynamoDB الصحيح هنا
 
-      return fileName;
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      throw error;
-    }
+  const uploadFile = async (file: File) => {
+    // قراءة الملف وتحويله إلى base64
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(',')[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    // إرسال الملف إلى Lambda
+    const response = await fetch(LAMBDA_UPLOAD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileContent: base64,
+        contentType: file.type,
+      }),
+    });
+    if (!response.ok) throw new Error('Upload failed');
+    const data = await response.json();
+    // بعد رفع الملف، سجل بياناته في DynamoDB
+    const recordRes = await fetch(LAMBDA_RECORD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: data.fileName,
+        s3Key: data.s3Key,
+      }),
+    });
+    if (!recordRes.ok) throw new Error('Failed to record upload in DynamoDB');
+    return data.s3Key; // أرجع s3Key لاستخدامه لاحقًا
   };
 
   const handleUpload = async (e: React.FormEvent) => {

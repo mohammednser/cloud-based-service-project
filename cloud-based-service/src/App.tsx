@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Amplify } from 'aws-amplify';
 import '@aws-amplify/ui-react/styles.css';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -13,10 +12,6 @@ import Search from './components/Search';
 import Stats from './components/Stats';
 import Settings from './components/Settings';
 import Sidebar from './components/Sidebar';
-
-// Configure Amplify
-import awsconfig from './aws-exports';
-Amplify.configure(awsconfig as any);
 
 const MainNav: React.FC = () => {
   const location = useLocation();

@@ -1,9 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { generateClient } from '@aws-amplify/api';
-import { listDocuments } from '../graphql/queries';
-import { DocumentType } from '../types';
-import { useLanguage } from './LanguageContext';
-import { categoryLabels } from './classifyDocument';
 import { Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -11,9 +6,11 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
+import { useLanguage } from './LanguageContext';
+import { categoryLabels } from './classifyDocument';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const client = generateClient();
+const LAMBDA_STATS_URL = 'https://fg9nays5v9.execute-api.eu-north-1.amazonaws.com/default/listStatsFromS3';
 
 interface StatsData {
   totalDocuments: number;
@@ -41,44 +38,16 @@ const Stats: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await client.graphql({ query: listDocuments });
-      if ('data' in response && response.data?.listDocuments) {
-        const documents: DocumentType[] = response.data.listDocuments.items;
-        
-        // Calculate statistics
-        const newStats = {
-          totalDocuments: documents.length,
-          totalSize: documents.reduce((sum, doc) => sum + (doc.size || 0), 0),
-          averageSize: 0,
-          categoryCounts: {} as Record<string, number>,
-          languageCounts: {} as Record<string, number>,
-        };
-
-        // Calculate average size
-        newStats.averageSize = newStats.totalDocuments > 0 
-          ? newStats.totalSize / newStats.totalDocuments 
-          : 0;
-
-        // Count documents by category and language
-        documents.forEach(doc => {
-          if (doc.category) {
-            newStats.categoryCounts[doc.category] = (newStats.categoryCounts[doc.category] || 0) + 1;
-          }
-          if (doc.language) {
-            newStats.languageCounts[doc.language] = (newStats.languageCounts[doc.language] || 0) + 1;
-          }
-        });
-
-        setStats(newStats);
-      } else {
-        setStats({
-          totalDocuments: 0,
-          totalSize: 0,
-          averageSize: 0,
-          categoryCounts: {},
-          languageCounts: {},
-        });
-      }
+      const response = await fetch(LAMBDA_STATS_URL);
+      if (!response.ok) throw new Error('Error fetching stats');
+      const data = await response.json();
+      setStats({
+        totalDocuments: data.totalFiles,
+        totalSize: data.totalSize,
+        averageSize: data.totalFiles > 0 ? data.totalSize / data.totalFiles : 0,
+        categoryCounts: {}, // التصنيف المتقدم يحتاج معالجة إضافية
+        languageCounts: {},
+      });
     } catch (err) {
       setError('Error fetching stats');
     } finally {
