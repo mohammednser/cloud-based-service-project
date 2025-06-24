@@ -1,5 +1,6 @@
 # Netlify configuration for React + Amplify client
 [build]
+  base = "cloud-based-service"
   command = "npm run build"
   publish = "build"
 
