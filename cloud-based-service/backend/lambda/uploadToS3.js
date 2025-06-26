@@ -10,7 +10,6 @@ exports.handler = async (event) => {
     const { fileName, fileContent, contentType } = body;
 
     const buffer = Buffer.from(fileContent, 'base64');
-    // توليد s3Key ثابت لاستخدامه في DynamoDB
     const s3Key = `documents/${Date.now()}-${fileName}`;
 
     await s3.putObject({
@@ -22,14 +21,22 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: 'File uploaded successfully!', s3Key, fileName }),
-      headers: { 'Access-Control-Allow-Origin': '*' }
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
+      },
+      body: JSON.stringify({ message: 'File uploaded successfully!', s3Key, fileName })
     };
   } catch (err) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: err.message }),
-      headers: { 'Access-Control-Allow-Origin': '*' }
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
+      },
+      body: JSON.stringify({ error: err.message })
     };
   }
 };

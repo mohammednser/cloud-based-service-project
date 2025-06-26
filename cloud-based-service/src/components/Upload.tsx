@@ -23,6 +23,7 @@ const Upload: React.FC = () => {
   const [crawlLoading, setCrawlLoading] = useState(false);
   const [crawlError, setCrawlError] = useState<string | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Add ref for file input
   let crawlAbortController = useRef<AbortController | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,44 +33,27 @@ const Upload: React.FC = () => {
     }
   };
 
-  // استبدال uploadFile ليستخدم Lambda API Gateway مباشرة
-  const LAMBDA_UPLOAD_URL = 'https://fg9nays5v9.execute-api.eu-north-1.amazonaws.com/default/uploadToS3';
-  const LAMBDA_RECORD_URL = 'https://fg9nays5v9.execute-api.eu-north-1.amazonaws.com/default/recordUploadToDynamo'; // ضع رابط Lambda DynamoDB الصحيح هنا
-
   const uploadFile = async (file: File) => {
-    // قراءة الملف وتحويله إلى base64
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    // إرسال الملف إلى Lambda
-    const response = await fetch(LAMBDA_UPLOAD_URL, {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('fileName', file.name);
+    formData.append('contentType', file.type);
+
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/uploadToS3`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: file.name,
-        fileContent: base64,
-        contentType: file.type,
-      }),
+      body: formData,
     });
-    if (!response.ok) throw new Error('Upload failed');
+
+    if (!response.ok) {
+      throw new Error('Upload failed: ' + (await response.text()));
+    }
+
     const data = await response.json();
-    // بعد رفع الملف، سجل بياناته في DynamoDB
-    const recordRes = await fetch(LAMBDA_RECORD_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: data.fileName,
-        s3Key: data.s3Key,
-      }),
-    });
-    if (!recordRes.ok) throw new Error('Failed to record upload in DynamoDB');
-    return data.s3Key; // أرجع s3Key لاستخدامه لاحقًا
+    if (!data.s3Key) {
+      throw new Error('Failed to get S3 key from upload response');
+    }
+
+    return data.s3Key;
   };
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -85,69 +69,83 @@ const Upload: React.FC = () => {
     setError(null);
 
     try {
+      let successCount = 0;
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const key = await uploadFile(file);
-        let title = file.name;
-        let text = '';
-        if (file.type === 'application/pdf') {
-          try {
-            const result = await extractPdfTitleAndText(file);
-            title = result.title;
-            text = result.text;
-          } catch (e) {
-            title = file.name;
-            text = '';
+        try {
+          const key = await uploadFile(file);
+          let title = file.name;
+          let text = '';
+          if (file.type === 'application/pdf') {
+            try {
+              const result = await extractPdfTitleAndText(file);
+              title = result.title;
+              text = result.text;
+            } catch (e) {
+              title = file.name;
+              text = '';
+            }
+          } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            try {
+              const result = await extractDocxTitleAndText(file);
+              title = result.title;
+              text = result.text;
+            } catch (e) {
+              title = file.name;
+              text = '';
+            }
           }
-        } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-          try {
-            const result = await extractDocxTitleAndText(file);
-            title = result.title;
-            text = result.text;
-          } catch (e) {
-            title = file.name;
-            text = '';
+          // تصنيف ذكي باستخدام NLP Cloud
+          let category = '';
+          if (process.env.REACT_APP_NLP_CLOUD_API_KEY) {
+            try {
+              category = (await classifyWithNlpCloud(text || title)) || '';
+            } catch {
+              category = '';
+            }
           }
-        }
-        // تصنيف ذكي باستخدام NLP Cloud
-        let category = '';
-        if (process.env.REACT_APP_NLP_CLOUD_API_KEY) {
-          category = (await classifyWithNlpCloud(text || title)) || '';
-        }
-        if (!category) {
-          category = classifyDocument(title, text);
-        }
-        // التعديل هنا فقط: استدعاء إضافة المستند
-        await client.graphql({
-          query: createDocument,
-          variables: {
-            input: {
-              title,
-              fileName: file.name,
-              text,
-              size: file.size,
-              s3Key: key,
-              status: 'UPLOADED',
-              category,
-              language: lang,
+          if (!category) {
+            category = classifyDocument(title, text);
+          }
+          // إضافة المستند
+          await client.graphql({
+            query: createDocument,
+            variables: {
+              input: {
+                title,
+                fileName: file.name,
+                text,
+                size: file.size,
+                s3Key: key,
+                status: 'UPLOADED',
+                category,
+                language: lang,
+              },
             },
-          },
-        });
+          });
+          successCount++;
+        } catch (err) {
+          // إذا فشل رفع ملف واحد، أكمل الباقي
+          toast.error((lang === 'ar' ? 'فشل رفع الملف: ' : 'Failed to upload file: ') + file.name);
+        }
+        setProgress(Math.round(((i + 1) / files.length) * 100));
       }
-      
       // Reset form
       setFiles(null);
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-      if (fileInput) {
-        fileInput.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
-      toast.success(lang === 'ar' ? t.uploadSuccess || 'تم رفع الملفات بنجاح!' : t.uploadSuccess || 'Files uploaded successfully!');
+      if (successCount > 0) {
+        toast.success(lang === 'ar' ? t.uploadSuccess || 'تم رفع الملفات بنجاح!' : t.uploadSuccess || 'Files uploaded successfully!');
+      } else {
+        setError(lang === 'ar' ? t.uploadError || 'حدث خطأ أثناء رفع الملفات.' : t.uploadError || 'An error occurred during upload.');
+      }
     } catch (error) {
-      console.error('Error in upload process:', error);
-      setError(lang === 'ar' ? t.uploadError || 'حدث خطأ أثناء رفع الملف. الرجاء المحاولة مرة أخرى.' : t.uploadError || 'An error occurred during upload. Please try again.');
-      toast.error(lang === 'ar' ? t.uploadError || 'حدث خطأ أثناء رفع الملف. الرجاء المحاولة مرة أخرى.' : t.uploadError || 'An error occurred during upload. Please try again.');
+      setError(lang === 'ar' ? t.uploadError || 'حدث خطأ أثناء رفع الملفات.' : t.uploadError || 'An error occurred during upload.');
+      toast.error(lang === 'ar' ? t.uploadError || 'حدث خطأ أثناء رفع الملفات.' : t.uploadError || 'An error occurred during upload.');
     } finally {
       setUploading(false);
+      setProgress(0);
     }
   };
 
@@ -202,6 +200,10 @@ const Upload: React.FC = () => {
     const dataTransfer = new DataTransfer();
     fileArray.forEach(file => dataTransfer.items.add(file));
     setFiles(dataTransfer.files.length > 0 ? dataTransfer.files : null);
+    // إعادة تعيين قيمة input[type="file"] إذا لم يتبق ملفات
+    if (dataTransfer.files.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   // دالة لجلب الملفات من مجلد scraped-files عبر API
@@ -209,7 +211,8 @@ const Upload: React.FC = () => {
     try {
       const response = await fetch('http://localhost:3001/api/scraped-files');
       if (!response.ok) throw new Error('Network response was not ok');
-      const files = await response.json();
+      const text = await response.text();
+      const files = text ? JSON.parse(text) : [];
       setScrapedFiles(files);
       toast.success(lang === 'ar' ? 'تم جلب الملفات من scraped-files.' : 'Fetched files from scraped-files.');
     } catch (err) {
@@ -243,7 +246,7 @@ const Upload: React.FC = () => {
                 <svg className="inline-block w-7 h-7 mr-2 -mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" /></svg>
                 {lang === 'ar' ? t.chooseFiles || 'اختر الملفات أو اسحبها هنا' : t.chooseFiles || 'Choose Files or Drag & Drop here'}
               </label>
-              <input id="file-upload" name="file-upload" type="file" accept=".pdf,.doc,.docx" multiple onChange={handleFileChange} className="hidden" />
+              <input id="file-upload" name="file-upload" type="file" accept=".pdf,.doc,.docx" multiple onChange={handleFileChange} className="hidden" ref={fileInputRef} />
               {/* زر استيراد من فولدر */}
               <label htmlFor="folder-upload" className="cursor-pointer bg-gradient-to-r from-green-500 to-emerald-400 text-white px-12 py-6 rounded-2xl shadow-xl hover:from-green-600 hover:to-emerald-500 transition-all duration-300 font-bold text-xl tracking-wide flex-1 text-center border-2 border-transparent hover:border-emerald-200">
                 <svg className="inline-block w-7 h-7 mr-2 -mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h12M3 17h6" /></svg>
